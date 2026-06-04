@@ -1,5 +1,5 @@
 # Nmap2Drawio
-~Welcome to Unholy's Nmap2Drawio~#
+Welcome to Unholy's Nmap2Drawio
  ---/!\ THIS IS A WORK IN PROGRESS /!\ ---
 This is an active project, and I'll be updating it soon!
 
