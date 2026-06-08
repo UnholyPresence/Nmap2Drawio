@@ -190,13 +190,34 @@ def print_scan_summary(scan: NmapScan) -> None:
 
 		print()
 
+def find_the_xmls() -> list[Path]:
+	xml_paths = list(Path(".").glob("*.xml"))
+
+	if xml_paths:
+		return xml_paths
+
+	target_dir = input("No XMLs in this dir. Run Nmap2Drawio in the dir where your files are or specifiy target directory: ")
+	target_path = Path(target_dir)
+
+	if not target_path.exists() or not target_path.is_dir():
+		print("***IMPOSSIBLY LOUD WRONG BUZZER*** Not a valid directory")
+		return[]
+
+	xml_paths = list(target_path.glob("*.xml"))
+
+	if not xml_paths:
+		print("No XMLs in here")
+		return[]
+
+	return xml_paths
+
 def main():
-	xml_path = list(Path(".").glob("*.xml"))
+	xml_path = find_the_xmls()
 	if not xml_path:
-		print("No XML files found in current directory")
 		return
+
 	for xmlpath in xml_path:
-		scan = parse_nmap_xml(xmlpath)
+		scan = parse_nmap_xml(str(xmlpath))
 		print_scan_summary(scan)
 
 if __name__ == "__main__":
