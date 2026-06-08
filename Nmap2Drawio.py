@@ -20,6 +20,7 @@
 #Imports
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
+from pathlib import Path
 
 
 #Define a class to hold ports/services/states/versions
@@ -188,10 +189,15 @@ def print_scan_summary(scan: NmapScan) -> None:
 			print(f" No open ports discovered")
 
 		print()
-		
+
 def main():
-	scan = parse_nmap_xml("SampleXMLs/xmltest.xml")
-	print_scan_summary(scan)
+	xml_path = list(Path(".").glob("*.xml"))
+	if not xml_path:
+		print("No XML files found in current directory")
+		return
+	for xmlpath in xml_path:
+		scan = parse_nmap_xml(xmlpath)
+		print_scan_summary(scan)
 
 if __name__ == "__main__":
 	main()
