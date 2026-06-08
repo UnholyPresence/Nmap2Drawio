@@ -211,6 +211,99 @@ def find_the_xmls() -> list[Path]:
 
 	return xml_paths
 
+def gen_blank_drawio(output_path: str) -> None:
+	mxfile = ET.Element("mxfile", {"host": "app.diagrams.net"})
+	diagram = ET.SubElement(mxfile, "diagram", {"name": "Nmap2Drawio"})
+	model = ET.SubElement(diagram, "mxGraphModel")
+	root = ET.SubElement(model, "root")
+	ET.SubElement(root, "mxCell", {"id": "0"})
+	ET.SubElement(root, "mxCell", {"id": "1", "parent": "0"})
+
+	tree = ET.ElementTree(mxfile)
+	tree.write(output_path, encoding="utf-8", xml_declaration=True)
+
+def get_host_display_name(host: NmapHost) -> str:
+	if host.hostnames:
+		return host.hostnames[0]
+
+	if host.ip:
+		return host.ip
+
+	return "Unknown Host"
+
+def build_host_label(host: NmapHost) -> str:
+	lines = []
+
+	display_name = get_host_display_name(host)
+	lines.append(display_name)
+
+	if host.hostnames and host.ip:
+		lines.append(host.ip)
+
+	if host.vendor:
+		lines.append(host.vendor)
+
+	if host.mac:
+		lines.append(host.mac)
+
+	if host.ports:
+		lines.append("")
+		for port in host.ports:
+			lines.append(f"{port.number}/{port.protocol} {port.service}")
+
+	return "\n".join(lines)
+
+#def main():
+#	xml_path = find_the_xmls()
+#	if not xml_path:
+#		return
+#
+#	for xmlpath in xml_path:
+#		scan = parse_nmap_xml(str(xmlpath))
+#		print_scan_summary(scan)
+#
+#if __name__ == "__main__":
+#	main()
+
+def generate_drawio(scan: NmapScan, output_path: str) -> None:
+    mxfile = ET.Element("mxfile", {"host": "app.diagrams.net"})
+    diagram = ET.SubElement(mxfile, "diagram", {"name": "Nmap2Drawio"})
+    model = ET.SubElement(diagram, "mxGraphModel")
+    root = ET.SubElement(model, "root")
+
+    ET.SubElement(root, "mxCell", {"id": "0"})
+    ET.SubElement(root, "mxCell", {"id": "1", "parent": "0"})
+
+    y = 40
+    cell_id = 2
+
+    for host in scan.hosts:
+        add_host_cell(root, str(cell_id), host, 40, y)
+        y += 180
+        cell_id += 1
+
+    tree = ET.ElementTree(mxfile)
+    tree.write(output_path, encoding="utf-8", xml_declaration=True)
+
+def add_host_cell(root, cell_id: str, host: NmapHost, x: int, y: int) -> None:
+    label = build_host_label(host)
+
+    cell = ET.SubElement(root, "mxCell", {
+        "id": cell_id,
+        "value": label,
+        "style": "...",
+        "vertex": "1",
+        "parent": "1"
+    })
+
+    ET.SubElement(cell, "mxGeometry", {
+        "x": str(x),
+        "y": str(y),
+        "width": "220",
+        "height": "140",
+        "as": "geometry"
+    })
+
 def main():
 	xml_path = find_the_xmls()
 	if not xml_path:
@@ -219,6 +312,16 @@ def main():
 	for xmlpath in xml_path:
 		scan = parse_nmap_xml(str(xmlpath))
 		print_scan_summary(scan)
+
+		output_name = f"{Path(xmlpath).stem}.drawio"
+		generate_drawio(scan, output_name)
+		print(f"Wrote file to {output_name}")
+#	for host in scan.hosts:
+#		print("----- HOST LABEL -----")
+#		print(build_host_label(host))
+
+#	gen_blank_drawio("nmap_output.drawio")
+#	print("Created file in current directory: nmap_output.drawio")
 
 if __name__ == "__main__":
 	main()
