@@ -81,7 +81,8 @@ def parse_nmap_xml(path: str) -> NmapScan:
 
 	scan = NmapScan(source_file=path)
 
-	print(root.tag)
+#	Debug Print
+#	print(root.tag)
 
 	for host_elem in root.findall("host"):
 		status = "unknown"
@@ -99,8 +100,6 @@ def parse_nmap_xml(path: str) -> NmapScan:
 				if name:
 					hostnames.append(name)
 
-		ports = []
-
 		ports_elem = host_elem.find("ports")
 		if ports_elem is not None:
 			for port_elem in ports_elem.findall("port"):
@@ -115,6 +114,8 @@ def parse_nmap_xml(path: str) -> NmapScan:
 				state_elem = port_elem.find("state")
 				if state_elem is not None:
 					state = state_elem.get("state", "")
+				if state != "open":
+					continue
 
 				service_elem = port_elem.find("service")
 				if service_elem is not None:
@@ -133,7 +134,8 @@ def parse_nmap_xml(path: str) -> NmapScan:
 
 				ports.append(port)
 
-		print(host_elem.tag)
+#		Debug Print
+#		print(host_elem.tag)
 
 		for address_elem in host_elem.findall("address"):
 			if address_elem.get("addrtype") == "ipv4":
@@ -159,9 +161,37 @@ def parse_nmap_xml(path: str) -> NmapScan:
 
 	return scan
 
+def print_scan_summary(scan: NmapScan) -> None:
+	print(f"Scan source: {scan.source_file}")
+	print(f"Hosts Discovered: {len(scan.hosts)}")
+	print()
+
+	for host in scan.hosts:
+		hostname_text = ""
+		if host.hostnames:
+			hostname_text = (f" ({', '.join(host.hostnames)})")
+
+		vendor_text = ""
+		if host.vendor:
+			vendor_text = f" {host.vendor}"
+
+		mac_text = ""
+		if host.mac:
+			mac_text = f" {host.mac}"
+
+		print(f"{host.ip}{hostname_text} [{host.status}]{vendor_text}{mac_text}")
+
+		if host.ports:
+			for port in host.ports:
+				print(f" {port.number}/{port.protocol} {port.state} {port.service}")
+		else:
+			print(f" No open ports discovered")
+
+		print()
+		
 def main():
 	scan = parse_nmap_xml("SampleXMLs/xmltest.xml")
-	print(scan)
+	print_scan_summary(scan)
 
 if __name__ == "__main__":
 	main()
