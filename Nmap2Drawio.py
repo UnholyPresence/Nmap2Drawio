@@ -253,6 +253,14 @@ def build_host_label(host: NmapHost) -> str:
 
 	return "\n".join(lines)
 
+def calculate_host_cell_height(host: NmapHost) -> int:
+	line_count = len(build_host_label(host).splitlines())
+	line_height = 18
+	padding = 40
+	minimum_height = 100
+
+	return max(minimum_height, padding + (line_count * line_height))
+
 #def main():
 #	xml_path = find_the_xmls()
 #	if not xml_path:
@@ -266,43 +274,48 @@ def build_host_label(host: NmapHost) -> str:
 #	main()
 
 def generate_drawio(scan: NmapScan, output_path: str) -> None:
-    mxfile = ET.Element("mxfile", {"host": "app.diagrams.net"})
-    diagram = ET.SubElement(mxfile, "diagram", {"name": "Nmap2Drawio"})
-    model = ET.SubElement(diagram, "mxGraphModel")
-    root = ET.SubElement(model, "root")
+	mxfile = ET.Element("mxfile", {"host": "app.diagrams.net"})
+	diagram = ET.SubElement(mxfile, "diagram", {"name": "Nmap2Drawio"})
+	model = ET.SubElement(diagram, "mxGraphModel")
+	root = ET.SubElement(model, "root")
 
-    ET.SubElement(root, "mxCell", {"id": "0"})
-    ET.SubElement(root, "mxCell", {"id": "1", "parent": "0"})
+	ET.SubElement(root, "mxCell", {"id": "0"})
+	ET.SubElement(root, "mxCell", {"id": "1", "parent": "0"})
 
-    y = 40
-    cell_id = 2
+	x = 40
+	y = 40
+	width = 280
+	vertical_gap = 40
+	cell_id = 2
 
-    for host in scan.hosts:
-        add_host_cell(root, str(cell_id), host, 40, y)
-        y += 180
-        cell_id += 1
+	for host in scan.hosts:
+		height = calculate_host_cell_height(host)
+		add_host_cell(root, str(cell_id), host, x, y, width, height)
 
-    tree = ET.ElementTree(mxfile)
-    tree.write(output_path, encoding="utf-8", xml_declaration=True)
+		y += height + vertical_gap
+		cell_id += 1
 
-def add_host_cell(root, cell_id: str, host: NmapHost, x: int, y: int) -> None:
-    label = build_host_label(host)
+	tree = ET.ElementTree(mxfile)
+	tree.write(output_path, encoding="utf-8", xml_declaration=True)
 
-    cell = ET.SubElement(root, "mxCell", {
-        "id": cell_id,
-        "value": label,
-        "style": "...",
-        "vertex": "1",
-        "parent": "1"
-    })
+def add_host_cell(root, cell_id: str, host: NmapHost, x: int, y: int, width: int, height: int) -> None:
+	label = build_host_label(host).replace("\n", "<br>")
 
-    ET.SubElement(cell, "mxGeometry", {
-        "x": str(x),
-        "y": str(y),
-        "width": "220",
-        "height": "140",
-        "as": "geometry"
-    })
+	cell = ET.SubElement(root, "mxCell", {
+		"id": cell_id,
+		"value": label,
+		"style": "rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;",
+		"vertex": "1",
+		"parent": "1"
+	})
+
+	ET.SubElement(cell, "mxGeometry", {
+		"x": str(x),
+		"y": str(y),
+		"width": str(width),
+		"height": str(height),
+		"as": "geometry"
+	})
 
 def main():
 	xml_path = find_the_xmls()
