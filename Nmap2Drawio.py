@@ -253,6 +253,13 @@ def build_host_label(host: NmapHost) -> str:
 
 	return "\n".join(lines)
 
+def find_default_gateway(scan: NmapScan) -> NmapHost | None:
+	for host in scan.hosts:
+		if host.ip.endswith(".1"):
+			return host
+
+	return None
+
 def calculate_host_cell_height(host: NmapHost) -> int:
 	line_count = len(build_host_label(host).splitlines())
 	line_height = 18
@@ -282,18 +289,53 @@ def generate_drawio(scan: NmapScan, output_path: str) -> None:
 	ET.SubElement(root, "mxCell", {"id": "0"})
 	ET.SubElement(root, "mxCell", {"id": "1", "parent": "0"})
 
-	x = 40
-	y = 40
-	width = 280
-	vertical_gap = 40
+	gateway = find_default_gateway(scan)
+
 	cell_id = 2
+	host_cell_ids = {}
+
+	if gateway is not None:
+		gateway_id = str(cell_id)
+		gateway_width = 280
+		gateway_height = calculate_host_cell_height(gateway)
+		add_host_cell(root, gateway_id, gateway, 360, 40, gateway_width, gateway_height)
+		host_cell_ids[gateway.ip] = gateway_id
+		cell_id += 1
+	else:
+		gateway_id = None
+
+	x = 40
+	width = 280
+	y = 260
+	horizontal_gap = 320
+	vertical_gap = 40
+	hosts_per_row = 3
+	column = 0
 
 	for host in scan.hosts:
-		height = calculate_host_cell_height(host)
-		add_host_cell(root, str(cell_id), host, x, y, width, height)
+		if gateway is not None and host.ip == gateway.ip:
+			continue
 
-		y += height + vertical_gap
+		current_id = str(cell_id)
+
+		host_x = x + (column * horizontal_gap)
+		host_y = y
+
+		height = calculate_host_cell_height(host)
+		add_host_cell(root, current_id, host, host_x, host_y, width, height)
+
+		host_cell_ids[host.ip] = current_id
+
+		if gateway_id is not None:
+			edge_id = f"edge_{gateway_id}_{current_id}"
+			add_edge_cell(root, edge_id, gateway_id, current_id)
+
 		cell_id += 1
+		column += 1
+
+		if column >= hosts_per_row:
+			column = 0
+			y += height + vertical_gap
 
 	tree = ET.ElementTree(mxfile)
 	tree.write(output_path, encoding="utf-8", xml_declaration=True)
@@ -314,6 +356,22 @@ def add_host_cell(root, cell_id: str, host: NmapHost, x: int, y: int, width: int
 		"y": str(y),
 		"width": str(width),
 		"height": str(height),
+		"as": "geometry"
+	})
+
+def add_edge_cell(root, cell_id: str, source_id: str, target_id: str) -> None:
+	edge = ET.SubElement(root, "mxCell", {
+		"id": cell_id,
+		"value": "",
+		"style": "endArrow=none;html=1;rounded=0;strokeWidth=2;",
+		"edge": "1",
+		"parent": "1",
+		"source": source_id,
+		"target": target_id
+	})
+
+	ET.SubElement(edge, "mxGeometry", {
+		"relative": "1",
 		"as": "geometry"
 	})
 
