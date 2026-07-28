@@ -238,38 +238,48 @@ def generate_drawio(scan: NmapScan, output_path: str) -> None:
 	cell_id = 2
 	host_cell_ids = {}
 
-	if gateway is not None:
-		gateway_id = str(cell_id)
-		gateway_width = 280
-		gateway_height = calculate_host_cell_height(gateway)
-		add_host_cell(root, gateway_id, gateway, 360, 40, gateway_width, gateway_height)
-		host_cell_ids[gateway.ip] = gateway_id
-		cell_id += 1
-	else:
-		gateway_id = None
-
 	x = 40
 	width = 280
-	y = 260
 	horizontal_gap = 320
 	vertical_gap = 40
 	hosts_per_row = 3
+
+	gateway_x = 360
+	gateway_y = 40
+	gateway_width = 280
+
+	# A dedicated lane just past the last column, never crossed by any row's
+	# boxes, so the trunk line can run through it at any depth without
+	# passing through a host.
+	trunk_x = x + (hosts_per_row * horizontal_gap)
+
+	if gateway is not None:
+		gateway_id = str(cell_id)
+		gateway_height = calculate_host_cell_height(gateway)
+		add_host_cell(root, gateway_id, gateway, gateway_x, gateway_y, gateway_width, gateway_height)
+		host_cell_ids[gateway.ip] = gateway_id
+		gateway_bottom = gateway_y + gateway_height
+		cell_id += 1
+		y = gateway_bottom + vertical_gap
+	else:
+		gateway_id = None
+		gateway_bottom = None
+		y = gateway_y
 
 	other_hosts = [host for host in scan.hosts if gateway is None or host.ip != gateway.ip]
 
 	rows = [other_hosts[i:i + hosts_per_row] for i in range(0, len(other_hosts), hosts_per_row)]
 
-	host_index = 0
-	total_hosts = len(other_hosts)
-
 	for row_hosts in rows:
 		row_height = max(calculate_host_cell_height(host) for host in row_hosts)
+		row_top = y
+		mid_y = row_top - (vertical_gap / 2)
 
 		for column, host in enumerate(row_hosts):
 			current_id = str(cell_id)
 
 			host_x = x + (column * horizontal_gap)
-			host_y = y
+			host_y = row_top
 
 			height = calculate_host_cell_height(host)
 			add_host_cell(root, current_id, host, host_x, host_y, width, height)
@@ -278,13 +288,17 @@ def generate_drawio(scan: NmapScan, output_path: str) -> None:
 
 			if gateway_id is not None:
 				edge_id = f"edge_{gateway_id}_{current_id}"
-				exit_x = (host_index + 1) / (total_hosts + 1)
-				add_edge_cell(root, edge_id, gateway_id, current_id, exit_x)
+				host_center_x = host_x + (width / 2)
+				waypoints = [
+					(trunk_x, gateway_bottom),
+					(trunk_x, mid_y),
+					(host_center_x, mid_y),
+				]
+				add_edge_cell(root, edge_id, gateway_id, current_id, waypoints)
 
 			cell_id += 1
-			host_index += 1
 
-		y += row_height + vertical_gap
+		y = row_top + row_height + vertical_gap
 
 	tree = ET.ElementTree(mxfile)
 	tree.write(output_path, encoding="utf-8", xml_declaration=True)
@@ -308,12 +322,12 @@ def add_host_cell(root, cell_id: str, host: NmapHost, x: int, y: int, width: int
 		"as": "geometry"
 	})
 
-def add_edge_cell(root, cell_id: str, source_id: str, target_id: str, exit_x: float) -> None:
+def add_edge_cell(root, cell_id: str, source_id: str, target_id: str, waypoints: list[tuple[float, float]]) -> None:
 	style = (
 		"endArrow=none;html=1;rounded=0;curved=0;edgeStyle=orthogonalEdgeStyle;"
-		"strokeWidth=2;exitX={exit_x};exitY=1;exitDx=0;exitDy=0;"
+		"strokeWidth=2;exitX=1;exitY=1;exitDx=0;exitDy=0;"
 		"entryX=0.5;entryY=0;entryDx=0;entryDy=0;"
-	).format(exit_x=round(exit_x, 4))
+	)
 
 	edge = ET.SubElement(root, "mxCell", {
 		"id": cell_id,
@@ -325,10 +339,14 @@ def add_edge_cell(root, cell_id: str, source_id: str, target_id: str, exit_x: fl
 		"target": target_id
 	})
 
-	ET.SubElement(edge, "mxGeometry", {
+	geometry = ET.SubElement(edge, "mxGeometry", {
 		"relative": "1",
 		"as": "geometry"
 	})
+
+	points = ET.SubElement(geometry, "Array", {"as": "points"})
+	for point_x, point_y in waypoints:
+		ET.SubElement(points, "mxPoint", {"x": str(point_x), "y": str(point_y)})
 
 def main():
 	xml_path = find_the_xmls()
