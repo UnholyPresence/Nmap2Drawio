@@ -254,32 +254,37 @@ def generate_drawio(scan: NmapScan, output_path: str) -> None:
 	horizontal_gap = 320
 	vertical_gap = 40
 	hosts_per_row = 3
-	column = 0
 
-	for host in scan.hosts:
-		if gateway is not None and host.ip == gateway.ip:
-			continue
+	other_hosts = [host for host in scan.hosts if gateway is None or host.ip != gateway.ip]
 
-		current_id = str(cell_id)
+	rows = [other_hosts[i:i + hosts_per_row] for i in range(0, len(other_hosts), hosts_per_row)]
 
-		host_x = x + (column * horizontal_gap)
-		host_y = y
+	host_index = 0
+	total_hosts = len(other_hosts)
 
-		height = calculate_host_cell_height(host)
-		add_host_cell(root, current_id, host, host_x, host_y, width, height)
+	for row_hosts in rows:
+		row_height = max(calculate_host_cell_height(host) for host in row_hosts)
 
-		host_cell_ids[host.ip] = current_id
+		for column, host in enumerate(row_hosts):
+			current_id = str(cell_id)
 
-		if gateway_id is not None:
-			edge_id = f"edge_{gateway_id}_{current_id}"
-			add_edge_cell(root, edge_id, gateway_id, current_id)
+			host_x = x + (column * horizontal_gap)
+			host_y = y
 
-		cell_id += 1
-		column += 1
+			height = calculate_host_cell_height(host)
+			add_host_cell(root, current_id, host, host_x, host_y, width, height)
 
-		if column >= hosts_per_row:
-			column = 0
-			y += height + vertical_gap
+			host_cell_ids[host.ip] = current_id
+
+			if gateway_id is not None:
+				edge_id = f"edge_{gateway_id}_{current_id}"
+				exit_x = (host_index + 1) / (total_hosts + 1)
+				add_edge_cell(root, edge_id, gateway_id, current_id, exit_x)
+
+			cell_id += 1
+			host_index += 1
+
+		y += row_height + vertical_gap
 
 	tree = ET.ElementTree(mxfile)
 	tree.write(output_path, encoding="utf-8", xml_declaration=True)
@@ -303,11 +308,17 @@ def add_host_cell(root, cell_id: str, host: NmapHost, x: int, y: int, width: int
 		"as": "geometry"
 	})
 
-def add_edge_cell(root, cell_id: str, source_id: str, target_id: str) -> None:
+def add_edge_cell(root, cell_id: str, source_id: str, target_id: str, exit_x: float) -> None:
+	style = (
+		"endArrow=none;html=1;rounded=0;curved=0;edgeStyle=orthogonalEdgeStyle;"
+		"strokeWidth=2;exitX={exit_x};exitY=1;exitDx=0;exitDy=0;"
+		"entryX=0.5;entryY=0;entryDx=0;entryDy=0;"
+	).format(exit_x=round(exit_x, 4))
+
 	edge = ET.SubElement(root, "mxCell", {
 		"id": cell_id,
 		"value": "",
-		"style": "endArrow=none;html=1;rounded=0;strokeWidth=2;",
+		"style": style,
 		"edge": "1",
 		"parent": "1",
 		"source": source_id,
