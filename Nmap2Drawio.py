@@ -307,7 +307,7 @@ def generate_drawio(scan: NmapScan, output_path: str) -> None:
 		row_index += 1
 
 	if gateway_id is not None and last_mid_y is not None:
-		add_line_cell(root, "trunk", TRUNK_STYLE, trunk_x, gateway_bottom, trunk_x, last_mid_y)
+		add_trunk_cell(root, "trunk", TRUNK_STYLE, gateway_id, trunk_x, gateway_bottom, trunk_x, last_mid_y)
 
 	tree = ET.ElementTree(mxfile)
 	tree.write(output_path, encoding="utf-8", xml_declaration=True)
@@ -333,7 +333,7 @@ def add_host_cell(root, cell_id: str, host: NmapHost, x: int, y: int, width: int
 
 # Descending thicknesses make it obvious at a glance which tier of the
 # trunk/spine/drop hierarchy a given line segment belongs to.
-TRUNK_STYLE = "endArrow=none;html=1;rounded=0;curved=0;strokeWidth=5;"
+TRUNK_STYLE = "endArrow=none;html=1;rounded=0;curved=0;strokeWidth=5;exitX=1;exitY=1;exitDx=0;exitDy=0;"
 SPINE_STYLE = "endArrow=none;html=1;rounded=0;curved=0;strokeWidth=3;"
 DROP_STYLE = "endArrow=none;html=1;rounded=0;curved=0;strokeWidth=2;entryX=0.5;entryY=0;entryDx=0;entryDy=0;"
 
@@ -354,6 +354,28 @@ def add_line_cell(root, cell_id: str, style: str, x1: float, y1: float, x2: floa
 
 	ET.SubElement(geometry, "mxPoint", {"x": str(x1), "y": str(y1), "as": "sourcePoint"})
 	ET.SubElement(geometry, "mxPoint", {"x": str(x2), "y": str(y2), "as": "targetPoint"})
+
+def add_trunk_cell(root, cell_id: str, style: str, source_id: str, corner_x: float, corner_y: float, end_x: float, end_y: float) -> None:
+	"""Runs from the gateway's own bottom-right corner (so it stays attached if
+	the gateway box moves/resizes), jogs to the trunk lane, then straight down."""
+	edge = ET.SubElement(root, "mxCell", {
+		"id": cell_id,
+		"value": "",
+		"style": style,
+		"edge": "1",
+		"parent": "1",
+		"source": source_id
+	})
+
+	geometry = ET.SubElement(edge, "mxGeometry", {
+		"relative": "1",
+		"as": "geometry"
+	})
+
+	ET.SubElement(geometry, "mxPoint", {"x": str(end_x), "y": str(end_y), "as": "targetPoint"})
+
+	points = ET.SubElement(geometry, "Array", {"as": "points"})
+	ET.SubElement(points, "mxPoint", {"x": str(corner_x), "y": str(corner_y)})
 
 def add_drop_cell(root, cell_id: str, style: str, x: float, y: float, target_id: str) -> None:
 	"""A short segment from a fixed spine point down into a host's top edge."""
