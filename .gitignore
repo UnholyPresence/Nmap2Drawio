@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.pyc
+.idea/
+
+# Generated diagrams / scan output
+Outputs/*
+!Outputs/.gitkeep
