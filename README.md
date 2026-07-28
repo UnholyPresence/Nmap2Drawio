@@ -80,3 +80,8 @@ directory directly, so it's picked up automatically)
 - Smarter layout for larger/segmented networks (subnets, multiple gateways)
 - Configurable styling (colors, grouping by OS/vendor/service)
 - Planned as a module in a broader automated report-generation pipeline
+
+## License
+
+MIT — see [LICENSE](LICENSE). Free to use and modify; if you base your own
+code on this, please keep the attribution.
