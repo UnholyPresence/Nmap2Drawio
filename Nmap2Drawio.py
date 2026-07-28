@@ -270,10 +270,21 @@ def generate_drawio(scan: NmapScan, output_path: str) -> None:
 
 	rows = [other_hosts[i:i + hosts_per_row] for i in range(0, len(other_hosts), hosts_per_row)]
 
+	# Column 0 is always populated, so the spine's left end is the same for
+	# every row regardless of how many hosts fill out the rest of it.
+	left_center_x = x + (width / 2)
+
+	last_mid_y = None
+	row_index = 0
+
 	for row_hosts in rows:
 		row_height = max(calculate_host_cell_height(host) for host in row_hosts)
 		row_top = y
 		mid_y = row_top - (vertical_gap / 2)
+		last_mid_y = mid_y
+
+		if gateway_id is not None:
+			add_line_cell(root, f"spine_{row_index}", SPINE_STYLE, trunk_x, mid_y, left_center_x, mid_y)
 
 		for column, host in enumerate(row_hosts):
 			current_id = str(cell_id)
@@ -287,18 +298,16 @@ def generate_drawio(scan: NmapScan, output_path: str) -> None:
 			host_cell_ids[host.ip] = current_id
 
 			if gateway_id is not None:
-				edge_id = f"edge_{gateway_id}_{current_id}"
 				host_center_x = host_x + (width / 2)
-				waypoints = [
-					(trunk_x, gateway_bottom),
-					(trunk_x, mid_y),
-					(host_center_x, mid_y),
-				]
-				add_edge_cell(root, edge_id, gateway_id, current_id, waypoints)
+				add_drop_cell(root, f"drop_{current_id}", DROP_STYLE, host_center_x, mid_y, current_id)
 
 			cell_id += 1
 
 		y = row_top + row_height + vertical_gap
+		row_index += 1
+
+	if gateway_id is not None and last_mid_y is not None:
+		add_line_cell(root, "trunk", TRUNK_STYLE, trunk_x, gateway_bottom, trunk_x, last_mid_y)
 
 	tree = ET.ElementTree(mxfile)
 	tree.write(output_path, encoding="utf-8", xml_declaration=True)
@@ -322,20 +331,38 @@ def add_host_cell(root, cell_id: str, host: NmapHost, x: int, y: int, width: int
 		"as": "geometry"
 	})
 
-def add_edge_cell(root, cell_id: str, source_id: str, target_id: str, waypoints: list[tuple[float, float]]) -> None:
-	style = (
-		"endArrow=none;html=1;rounded=0;curved=0;edgeStyle=orthogonalEdgeStyle;"
-		"strokeWidth=2;exitX=1;exitY=1;exitDx=0;exitDy=0;"
-		"entryX=0.5;entryY=0;entryDx=0;entryDy=0;"
-	)
+# Descending thicknesses make it obvious at a glance which tier of the
+# trunk/spine/drop hierarchy a given line segment belongs to.
+TRUNK_STYLE = "endArrow=none;html=1;rounded=0;curved=0;strokeWidth=5;"
+SPINE_STYLE = "endArrow=none;html=1;rounded=0;curved=0;strokeWidth=3;"
+DROP_STYLE = "endArrow=none;html=1;rounded=0;curved=0;strokeWidth=2;entryX=0.5;entryY=0;entryDx=0;entryDy=0;"
 
+def add_line_cell(root, cell_id: str, style: str, x1: float, y1: float, x2: float, y2: float) -> None:
+	"""A standalone straight segment (trunk or spine) not attached to any vertex."""
+	edge = ET.SubElement(root, "mxCell", {
+		"id": cell_id,
+		"value": "",
+		"style": style,
+		"edge": "1",
+		"parent": "1"
+	})
+
+	geometry = ET.SubElement(edge, "mxGeometry", {
+		"relative": "1",
+		"as": "geometry"
+	})
+
+	ET.SubElement(geometry, "mxPoint", {"x": str(x1), "y": str(y1), "as": "sourcePoint"})
+	ET.SubElement(geometry, "mxPoint", {"x": str(x2), "y": str(y2), "as": "targetPoint"})
+
+def add_drop_cell(root, cell_id: str, style: str, x: float, y: float, target_id: str) -> None:
+	"""A short segment from a fixed spine point down into a host's top edge."""
 	edge = ET.SubElement(root, "mxCell", {
 		"id": cell_id,
 		"value": "",
 		"style": style,
 		"edge": "1",
 		"parent": "1",
-		"source": source_id,
 		"target": target_id
 	})
 
@@ -344,9 +371,7 @@ def add_edge_cell(root, cell_id: str, source_id: str, target_id: str, waypoints:
 		"as": "geometry"
 	})
 
-	points = ET.SubElement(geometry, "Array", {"as": "points"})
-	for point_x, point_y in waypoints:
-		ET.SubElement(points, "mxPoint", {"x": str(point_x), "y": str(point_y)})
+	ET.SubElement(geometry, "mxPoint", {"x": str(x), "y": str(y), "as": "sourcePoint"})
 
 def main():
 	xml_path = find_the_xmls()
